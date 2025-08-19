@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FireBlog - ফায়ারবেস ব্লগ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4361ee',
+                        'primary-light': '#5c7cfa',
+                        'primary-dark': '#3a56d4',
+                        secondary: '#3f37c9',
+                        success: '#4cc9f0',
+                        danger: '#f72585',
+                        warning: '#ff9e00',
+                        info: '#7209b7',
+                        light: '#f8f9fa',
+                        'light-bg': '#ffffff',
+                        'light-text': '#212529',
+                        'light-card': '#ffffff',
+                        'light-border': '#e9ecef',
+                        'light-muted': '#6c757d',
+                        'dark-primary': '#5c7cfa',
+                        'dark-bg': '#121826',
+                        'dark-text': '#e9ecef',
+                        'dark-card': '#1e293b',
+                        'dark-border': '#334155',
+                        'dark-muted': '#94a3b8',
+                    },
+                    boxShadow: {
+                        'light': '0 4px 20px rgba(0,0,0,0.05)',
+                        'dark': '0 4px 20px rgba(0,0,0,0.3)',
+                    },
+                    borderRadius: {
+                        'custom': '12px',
+                    },
+                    transitionProperty: {
+                        'custom': 'all',
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tiro+Bangla&display=swap');
+        
+        * {
+            font-family: 'Tiro Bangla', serif;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loader {
+            border: 4px solid rgba(67, 97, 238, 0.2);
+            border-top-color: #4361ee;
+            animation: spin 1s linear infinite;
+        }
+        
+        .mobile-menu {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        
+        .mobile-menu.open {
+            max-height: 500px;
+        }
+        
+        /* Dark mode improvements */
+        .dark .loader {
+            border-color: rgba(92, 124, 250, 0.2);
+            border-top-color: #5c7cfa;
+        }
+        
+        /* Smooth transitions for theme changes */
+        body, .bg-light-bg, .bg-dark-bg, .text-light-text, .text-dark-text,
+        .bg-light-card, .bg-dark-card, .border-light-border, .border-dark-border {
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        }
+        
+        /* Chart.js dark mode support */
+        .dark canvas {
+            filter: invert(0.9) hue-rotate(180deg);
+        }
+    </style>
+</head>
+<body class="bg-light-bg dark:bg-dark-bg text-light-text dark:text-dark-text transition-colors duration-300 min-h-screen flex flex-col">
+    <!-- Toast Container -->
+    <div class="fixed bottom-6 right-6 z-50 flex flex-col gap-3" id="toast-container"></div>
+    
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-primary to-secondary text-white py-4 px-5 shadow-lg sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center">
+                <!-- Hamburger menu for mobile -->
+                <button id="mobile-menu-btn" class="md:hidden mr-3 text-xl">
+                    <i class="fas fa-bars"></i>
+                </button>
+                
+                <a href="#" class="flex items-center space-x-2" onclick="showPage('posts')">
+                    <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                        <i class="fas fa-fire text-xl"></i>
+                    </div>
+                    <span class="text-xl font-bold">FireBlog</span>
+                </a>
+            </div>
+            
+            <!-- Desktop Navigation -->
+            <div class="hidden md:flex space-x-4">
+                <a href="#" class="px-4 py-2 rounded-full hover:bg-white/15 transition" onclick="showPage('dashboard')">
+                    <i class="fas fa-chart-line mr-2"></i>ড্যাশবোর্ড
+                </a>
+                <a href="#" class="px-4 py-2 rounded-full bg-white/15 transition" onclick="showPage('posts')">
+                    <i class="fas fa-file-alt mr-2"></i>পোস্ট
+                </a>
+                <a href="#" class="px-4 py-2 rounded-full hover:bg-white/15 transition" onclick="showPage('add-post')">
+                    <i class="fas fa-plus-circle mr-2"></i>নতুন পোস্ট
+                </a>
+                <a href="#" class="px-4 py-2 rounded-full hover:bg-white/15 transition" onclick="showPage('profile')">
+                    <i class="fas fa-user mr-2"></i>প্রোফাইল
+                </a>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <button id="theme-toggle" class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/15 transition" title="Toggle Theme">
+                    <i class="fas fa-moon"></i>
+                </button>
+            
+                    T
+                </button>
+                
+                <div id="user-info">
+                    <button class="bg-white dark:bg-dark-card text-primary dark:text-primary-light px-4 py-2 rounded-full font-semibold flex items-center hover:bg-light dark:hover:bg-dark-border transition" onclick="showPage('login-page')">
+                        <i class="fas fa-sign-in-alt mr-2"></i>লগইন
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Mobile Navigation -->
+        <div id="mobile-menu" class="mobile-menu md:hidden bg-primary-dark dark:bg-dark-card mt-2 rounded-lg shadow-lg">
+            <div class="flex flex-col py-3">
+                <a href="#" class="px-4 py-2 hover:bg-white/15 dark:hover:bg-dark-border transition" onclick="showPage('dashboard'); toggleMobileMenu()">
+                    <i class="fas fa-chart-line mr-2"></i>ড্যাশবোর্ড
+                </a>
+                <a href="#" class="px-4 py-2 bg-white/15 dark:bg-dark-border transition" onclick="showPage('posts'); toggleMobileMenu()">
+                    <i class="fas fa-file-alt mr-2"></i>পোস্ট
+                </a>
+                <a href="#" class="px-4 py-2 hover:bg-white/15 dark:hover:bg-dark-border transition" onclick="showPage('add-post'); toggleMobileMenu()">
+                    <i class="fas fa-plus-circle mr-2"></i>নতুন পোস্ট
+                </a>
+                <a href="#" class="px-4 py-2 hover:bg-white/15 dark:hover:bg-dark-border transition" onclick="showPage('profile'); toggleMobileMenu()">
+                    <i class="fas fa-user mr-2"></i>প্রোফাইল
+                </a>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main Content -->
+    <main class="flex-1 py-8 px-4 max-w-6xl mx-auto w-full">
+        <!-- Dashboard Page -->
+        <section id="dashboard" class="hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                <div class="lg:col-span-1 bg-light-card dark:bg-dark-card rounded-xl p-6 shadow-light dark:shadow-dark">
+                    <h2 class="text-primary text-xl font-bold mb-5 flex items-center">
+                      
+                    </h2>
+                    <ul class="space-y-2">
+                        <li class="flex items-center space-x-3 p-3 rounded-lg bg-primary/10 text-primary cursor-pointer" onclick="showPage('dashboard')">
+                            <i class="fas fa-chart-line w-6 text-center"></i>
+                            <span>ড্যাশবোর্ড</span>
+                        </li>
+                        <li class="flex items-center space-x-3 p-3 rounded-lg hover:bg-primary/10 hover:text-primary cursor-pointer" onclick="showPage('posts')">
+                            <i class="fas fa-file-alt w-6 text-center"></i>
+                            <span>পোস্ট ম্যানেজমেন্ট</span>
+                        </li>
+                        <li class="flex items-center space-x-3 p-3 rounded-lg hover:bg-primary/10 hover:text-primary cursor-pointer" onclick="showPage('add-post')">
+                            <i class="fas fa-plus-circle w-6 text-center"></i>
+                            <span>নতুন পোস্ট</span>
+                        </li>
+                        <li class="flex items-center space-x-3 p-3 rounded-lg hover:bg-primary/10 hover:text-primary cursor-pointer" onclick="showPage('profile')">
+                            <i class="fas fa-user w-6 text-center"></i>
+                            <span>প্রোফাইল</span>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="lg:col-span-3 bg-light-card dark:bg-dark-card rounded-xl p-6 shadow-light dark:shadow-dark">
+                    <h1 class="text-primary text-2xl font-bold mb-6 flex items-center">
+                        <i class="fas fa-chart-line mr-3"></i> ড্যাশবোর্ড
+                    </h1>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+                        <div class="bg-gradient-to-r from-primary-light to-primary text-white p-5 rounded-xl">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <div class="text-sm opacity-90">মোট পোস্ট</div>
+                                    <div class="text-3xl font-bold" id="total-posts">0</div>
+                                </div>
+                                <div class="text-2xl opacity-80">
+                                    <i class="fas fa-file-alt"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-gradient-to-r from-warning to-danger text-white p-5 rounded-xl">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <div class="text-sm opacity-90">মোট ভিউ</div>
+                                    <div class="text-3xl font-bold" id="total-views">0</div>
+                                </div>
+                                <div class="text-2xl opacity-80">
+                                    <i class="fas fa-eye"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-gradient-to-r from-info to-danger text-white p-5 rounded-xl">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <div class="text-sm opacity-90">ব্যবহারকারী</div>
+                                    <div class="text-3xl font-bold" id="total-users">1</div>
+                                </div>
+                                <div class="text-2xl opacity-80">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-gradient-to-r from-success to-info text-white p-5 rounded-xl">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <div class="text-sm opacity-90">ক্যাটাগরি</div>
+                                    <div class="text-3xl font-bold" id="total-categories">0</div>
+                                </div>
+                                <div class="text-2xl opacity-80">
+                                    <i class="fas fa-tags"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <div class="bg-light-card dark:bg-dark-card rounded-xl p-6 shadow-light dark:shadow-dark">
+                            <h2 class="text-primary text-xl font-bold mb-4">পোস্ট বিভাগ অনুযায়ী</h2>
+                            <canvas id="category-chart" height="250"></canvas>
+                        </div>
+                        
+                        <div class="bg-light-card dark:bg-dark-card rounded-xl p-6 shadow-light dark:shadow-dark">
+                            <h2 class="text-primary text-xl font-bold mb-4">সাম্প্রতিক পোস্টের ভিউ</h2>
+                            <canvas id="views-chart" height="250"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-light-card dark:bg-dark-card rounded-xl p-6 shadow-light dark:shadow-dark">
+                        <h2 class="text-primary text-xl font-bold mb-4">সাম্প্রতিক এক্টিভিটি</h2>
+                        <div class="space-y-4" id="recent-activity">
+                            <div class="flex justify-center items-center py-10">
+                                <div class="loader w-10 h-10 rounded-full border-4"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Posts Page -->
+        <section id="posts" class="">
+            <div class="bg-light-card dark:bg-dark-card rounded-xl p-6 shadow-light dark:shadow-dark">
+                <div class="flex justify-between items-center mb-6">
+                    <h1 class="text-primary text-2xl font-bold flex items-center">
+                        <i class="fas fa-file-alt mr-3"></i> সাম্প্রতিক পোস্ট
+                    </h1>
+                    <button class="bg-primary text-white px-4 py-2 rounded-lg flex items-center" onclick="showPage('add-post')">
+                        <i class="fas fa-plus mr-2"></i> নতুন পোস্ট
+                    </button>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="posts-container">
+                    <div class="flex justify-center items-center py-10 col-span-3">
+                        <div class="loader w-10 h-10 rounded-full border-4"></div>
+                        <span class="ml-4">পোস্ট লোড হচ্ছে...</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Post Detail Page -->
+        <section id="post-detail" class="hidden">
+            <div class="bg-light-card dark:bg-dark-card rounded-xl p-6 shadow-light dark:shadow-dark">
+                <div class="flex justify-between items-start mb-6">
+                    <button class="bg-primary text-white px-4 py-2 rounded-lg flex items-center" onclick="showPage('posts')">
+                        <i class="fas fa-arrow-left mr-2"></i> পোস্টে ফিরুন
+                    </button>
+                    <div class="flex space-x-3" id="post-actions">
+                        <button class="bg-warning text-white px-4 py-2 rounded-lg flex items-center" onclick="editPost(currentPostId)">
+                            <i class="fas fa-edit mr-2"></i> এডিট
+                        </button>
+                        <button class="bg-danger text-white px-4 py-2 rounded-lg flex items-center" onclick="deletePost(currentPostId)">
+                            <i class="fas fa-trash mr-2"></i> ডিলিট
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="post-detail-content">
+                    <!-- Dynamic content will be loaded here -->
+                </div>
+            </div>
+        </section>
+        
+        <!-- Add/Edit Post Page -->
+        <section id="add-post" class="hidden">
+            <div class="bg-light-card dark:bg-dark-card rounded-xl p-6 shadow-light dark:shadow-dark max-w-3xl mx-auto">
+                <h1 class="text-primary text-2xl font-bold mb-6 flex items-center">
+                    <i class="fas fa-plus-circle mr-3"></i> <span id="form-title">নতুন পোস্ট তৈরি করুন</span>
+                </h1>
+                
+                <form id="post-form">
+                    <input type="hidden" id="post-id">
+                    <div class="mb-6">
+                        <label class="block text-lg font-semibold mb-2">পোস্টের শিরোনাম</label>
+                        <input type="text" class="w-full p-4 border-2 border-light-border dark:border-dark-border rounded-lg bg-light-bg dark:bg-dark-bg focus:border-primary focus:ring-1 focus:ring-primary" 
+                               id="post-title" placeholder="আপনার পোস্টের শিরোনাম লিখুন" required>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <label class="block text-lg font-semibold mb-2">বিভাগ</label>
+                        <select class="w-full p-4 border-2 border-light-border dark:border-dark-border rounded-lg bg-light-bg dark:bg-dark-bg focus:border-primary focus:ring-1 focus:ring-primary" 
+                                id="post-category" required>
+                            <option value="">একটি বিভাগ নির্বাচন করুন</option>
+                            <option value="প্রযুক্তি">প্রযুক্তি</option>
+                            <option value="স্বাস্থ্য">স্বাস্থ্য</option>
+                            <option value="শিক্ষা">শিক্ষা</option>
+                            <option value="বিনোদন">বিনোদন</option>
+                            <option value="খেলাধুলা">খেলাধুলা</option>
+                            <option value="রাজনীতি">রাজনীতি</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <label class="block text-lg font-semibold mb-2">পোস্টের বিস্তারিত</label>
+                        <textarea class="w-full p-4 border-2 border-light-border dark:border-dark-border rounded-lg bg-light-bg dark:bg-dark-bg focus:border-primary focus:ring-1 focus:ring-primary min-h-[200px]" 
+                                  id="post-content" placeholder="আপনার পোস্টের বিস্তারিত লিখুন" required></textarea>
+                    </div>
+                    
+                    <div class="flex gap-4 mt-8">
+                        <button type="submit" class="flex-1 bg-primary text-white p-4 rounded-lg font-semibold flex items-center justify-center text-lg">
+                            <i class="fas fa-paper-plane mr-2"></i> <span id="submit-text">পোস্ট প্রকাশ করুন</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+        
+        <!-- Profile Page -->
+        <section id="profile" class="hidden">
+            <div class="bg-light-card dark:bg-dark-card rounded-xl p-6 shadow-light dark:shadow-dark">
+                <h1 class="text-primary text-2xl font-bold mb-6 flex items-center">
+                    <i class="fas fa-user mr-3"></i> ব্যবহারকারী প্রোফাইল
+                </h1>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-light-card dark:bg-dark-card rounded-xl p-8 text-center">
+                        <div class="w-32 h-32 rounded-full bg-gradient-to-r from-primary to-secondary mx-auto flex items-center justify-center text-white text-5xl font-bold mb-6 border-4 border-white shadow-lg" id="profile-avatar">
+                            U
+                        </div>
+                        <h2 class="text-2xl font-bold mb-1" id="profile-name">ব্যবহারকারীর নাম</h2>
+                        <p class="text-light-muted dark:text-dark-muted mb-8" id="profile-email">ইমেইল লোড হচ্ছে...</p>
+                        
+                        <div class="flex justify-center space-x-8">
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-primary" id="user-posts">0</div>
+                                <div class="text-light-muted dark:text-dark-muted">পোস্ট</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-2xl font-bold text-primary" id="user-views">0</div>
+                                <div class="text-light-muted dark:text-dark-muted">ভিউ</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-light-card dark:bg-dark-card rounded-xl p-8">
+                        <h2 class="text-xl font-bold mb-6 text-primary">প্রোফাইল আপডেট করুন</h2>
+                        
+                        <form id="profile-form">
+                            <div class="mb-6">
+                                <label class="block text-lg font-semibold mb-2">পুরো নাম</label>
+                                <input type="text" class="w-full p-4 border-2 border-light-border dark:border-dark-border rounded-lg bg-light-bg dark:bg-dark-bg focus:border-primary focus:ring-1 focus:ring-primary" 
+                                       id="profile-fullname" placeholder="আপনার পুরো নাম">
+                            </div>
+                            
+                            <button type="submit" class="w-full bg-primary text-white p-4 rounded-lg font-semibold text-lg flex items-center justify-center">
+                                <i class="fas fa-save mr-2"></i> আপডেট সংরক্ষণ করুন
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Login Page -->
+        <section id="login-page" class="hidden">
+            <div class="flex justify-center items-center min-h-[70vh]">
+                <div class="bg-light-card dark:bg-dark-card rounded-xl p-8 shadow-light dark:shadow-dark w-full max-w-md">
+                    <h1 class="text-primary text-2xl font-bold text-center mb-8">FireBlog এ লগইন করুন</h1>
+                    
+                    <div class="text-center mb-8">
+                        <div class="w-24 h-24 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-lock text-white text-3xl"></i>
+                        </div>
+                        <p class="text-light-muted dark:text-dark-muted">আপনার অ্যাকাউন্টে প্রবেশ করতে লগইন করুন</p>
+                    </div>
+                    
+                    <form id="login-form">
+                        <div class="mb-6">
+                            <label class="block text-lg font-semibold mb-2">ইমেইল ঠিকানা</label>
+                            <input type="email" class="w-full p-4 border-2 border-light-border dark:border-dark-border rounded-lg bg-light-bg dark:bg-dark-bg focus:border-primary focus:ring-1 focus:ring-primary" 
+                                   id="login-email" placeholder="আপনার ইমেইল ঠিকানা লিখুন" required>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <label class="block text-lg font-semibold mb-2">পাসওয়ার্ড</label>
+                            <input type="password" class="w-full p-4 border-2 border-light-border dark:border-dark-border rounded-lg bg-light-bg dark:bg-dark-bg focus:border-primary focus:ring-1 focus:ring-primary" 
+                                   id="login-password" placeholder="আপনার পাসওয়ার্ড লিখুন" required>
+                        </div>
+                        
+                        <button type="submit" class="w-full bg-primary text-white p-4 rounded-lg font-semibold text-lg mb-6">
+                            <i class="fas fa-sign-in-alt mr-2"></i> লগইন করুন
+                        </button>
+                        
+                        <div class="relative h-px bg-light-border dark:bg-dark-border my-6">
+                            <span class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-light-card dark:bg-dark-card px-4 text-light-muted dark:text-dark-muted">অথবা</span>
+                        </div>
+                        
+                        <button type="button" class="w-full bg-blue-600 text-white p-4 rounded-lg font-semibold text-lg flex items-center justify-center" onclick="signInWithGoogle()">
+                            <i class="fab fa-google mr-2"></i> গুগল দিয়ে লগইন করুন
+                        </button>
+                    </form>
+                    
+                    <p class="text-center mt-8">
+                        অ্যাকাউন্ট নেই? <a href="#" class="text-primary font-semibold" onclick="showPage('register')">এখানে নিবন্ধন করুন</a>
+                    </p>
+                </div>
+            </div>
+        </section>
+    </main>
+    
+    <!-- Footer -->
+    <footer class="bg-gradient-to-r from-primary-dark to-secondary text-white py-12 px-4 mt-auto">
+        <div class="max-w-6xl mx-auto text-center">
+            <p class="text-xl mb-3">© ২০২৩ FireBlog - ফায়ারবেস দিয়ে তৈরি সম্পূর্ণ ব্লগ অ্যাপ্লিকেশন</p>
+            <p class="opacity-80">এই অ্যাপটি Firebase Authentication, Firestore এবং Analytics ব্যবহার করে তৈরি করা হয়েছে</p>
+        </div>
+    </footer>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAJ36z01QfphrCbbkBCQrRaFOjKA62hB0U",
+            authDomain: "fireblog-710eb.firebaseapp.com",
+            projectId: "fireblog-710eb",
+            storageBucket: "fireblog-710eb.appspot.com",
+            messagingSenderId: "504996124811",
+            appId: "1:504996124811:web:e1de3ba26d4fd570725c8e"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        
+        // Firestore references
+        const postsRef = db.collection("posts");
+        
+        // DOM elements
+        const themeToggle = document.getElementById('theme-toggle');
+        const userInfoDiv = document.getElementById('user-info');
+        const toastContainer = document.getElementById('toast-container');
+        const postsContainer = document.getElementById('posts-container');
+        const totalPostsEl = document.getElementById('total-posts');
+        const totalViewsEl = document.getElementById('total-views');
+        const totalUsersEl = document.getElementById('total-users');
+        const totalCategoriesEl = document.getElementById('total-categories');
+        const profileAvatar = document.getElementById('profile-avatar');
+        const profileName = document.getElementById('profile-name');
+        const profileEmail = document.getElementById('profile-email');
+        const userPostsEl = document.getElementById('user-posts');
+        const userViewsEl = document.getElementById('user-views');
+        const postDetailContent = document.getElementById('post-detail-content');
+        const postActions = document.getElementById('post-actions');
+        const postForm = document.getElementById('post-form');
+        const postIdInput = document.getElementById('post-id');
+        const formTitle = document.getElementById('form-title');
+        const submitText = document.getElementById('submit-text');
+        const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+        const mobileMenu = document.getElementById('mobile-menu');
+        
+        // Chart instances
+        let categoryChart = null;
+        let viewsChart = null;
+        
+        // Current post ID for detail view
+        let currentPostId = null;
+        let currentUser = null;
+        
+        // Theme initialization
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme');
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            if (savedTheme === 'dark') {
+                document.documentElement.classList.add('dark');
+                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            } else if (savedTheme === 'light') {
+                document.documentElement.classList.remove('dark');
+                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+            } else if (systemPrefersDark) {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+            } else {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+            }
+        }
+        
+        // Theme toggle
+        themeToggle.addEventListener('click', () => {
+            const isDark = document.documentElement.classList.contains('dark');
+            
+            if (isDark) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+                showToast('লাইট মোড সক্রিয় করা হয়েছে', 'success');
+                console.log('Switched to light mode');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+                showToast('ডার্ক মোড সক্রিয় করা হয়েছে', 'success');
+                console.log('Switched to dark mode');
+            }
+            
+            // Update dynamic elements
+            updateThemeElements();
+        });
+        
+        // Update theme-dependent elements
+        function updateThemeElements() {
+            const isDark = document.documentElement.classList.contains('dark');
+            
+            // Update user info buttons if they exist
+            const userButtons = document.querySelectorAll('.bg-white.text-primary');
+            userButtons.forEach(button => {
+                if (isDark) {
+                    button.classList.add('dark:bg-dark-card', 'dark:text-primary-light', 'dark:hover:bg-dark-border');
+                } else {
+                    button.classList.remove('dark:bg-dark-card', 'dark:text-primary-light', 'dark:hover:bg-dark-border');
+                }
+            });
+            
+            // Update all elements with theme classes
+            const themeElements = document.querySelectorAll('[class*="light-"], [class*="dark-"]');
+            themeElements.forEach(element => {
+                // Force re-render by temporarily removing and re-adding classes
+                const classes = element.className;
+                element.className = classes;
+            });
+            
+            // Update charts if they exist
+            if (categoryChart || viewsChart) {
+                setTimeout(() => {
+                    if (categoryChart) categoryChart.update();
+                    if (viewsChart) viewsChart.update();
+                }, 100);
+            }
+            
+            console.log('Theme elements updated. Dark mode:', isDark);
+        }
+        
+       
+        // Show toast message
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = `flex items-center p-4 rounded-lg text-white shadow-lg ${
+                type === 'success' ? 'bg-green-500 dark:bg-green-600' : 
+                type === 'error' ? 'bg-red-500 dark:bg-red-600' : 
+                type === 'warning' ? 'bg-yellow-500 dark:bg-yellow-600' : 'bg-blue-500 dark:bg-blue-600'
+            }`;
+            toast.innerHTML = `
+                <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'} text-xl mr-3"></i>
+                <span>${message}</span>
+                <button class="ml-4 hover:opacity-70 transition-opacity" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                toast.remove();
+            }, 5000);
+        }
+        
+        // Toggle mobile menu
+        function toggleMobileMenu() {
+            mobileMenu.classList.toggle('open');
+            
+            // Close menu when clicking outside
+            if (mobileMenu.classList.contains('open')) {
+                setTimeout(() => {
+                    document.addEventListener('click', closeMobileMenu);
+                }, 100);
+            } else {
+                document.removeEventListener('click', closeMobileMenu);
+            }
+        }
+        
+        // Close mobile menu
+        function closeMobileMenu(event) {
+            if (!mobileMenu.contains(event.target) && !mobileMenuBtn.contains(event.target)) {
+                mobileMenu.classList.remove('open');
+                document.removeEventListener('click', closeMobileMenu);
+            }
+        }
+        
+        // Mobile menu button event
+        mobileMenuBtn.addEventListener('click', toggleMobileMenu);
+        
+        // Show page
+        function showPage(pageId) {
+            // Hide all pages
+            document.querySelectorAll('section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            
+            // Show the requested page
+            document.getElementById(pageId).classList.remove('hidden');
+            
+            // Load data if needed
+            if (pageId === 'posts') {
+                loadPosts();
+            } else if (pageId === 'dashboard') {
+                loadDashboardData();
+            } else if (pageId === 'add-post') {
+                // Only reset form if not editing (no post ID)
+                const postIdInput = document.getElementById('post-id');
+                if (!postIdInput || !postIdInput.value) {
+                    resetPostForm();
+                }
+            }
+        }
+        
+        // Reset post form
+        function resetPostForm() {
+            document.getElementById('post-form').reset();
+            postIdInput.value = '';
+            formTitle.textContent = 'নতুন পোস্ট তৈরি করুন';
+            submitText.textContent = 'পোস্ট প্রকাশ করুন';
+            
+            // Clear any validation states
+            const inputs = postForm.querySelectorAll('input, textarea, select');
+            inputs.forEach(input => {
+                input.classList.remove('border-red-500', 'border-green-500');
+                input.classList.add('border-light-border', 'dark:border-dark-border');
+            });
+            
+            // Ensure form is in add mode
+            const addPostIcon = document.querySelector('#add-post .fas.fa-plus-circle');
+            if (addPostIcon) {
+                addPostIcon.className = 'fas fa-plus-circle mr-3';
+            }
+        }
+        
+        // Google sign-in
+        function signInWithGoogle() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider)
+                .then(() => {
+                    showToast('সফলভাবে গুগল দিয়ে লগইন করা হয়েছে!', 'success');
+                    showPage('posts');
+                })
+                .catch(error => {
+                    showToast(`লগইন করতে সমস্যা: ${error.message}`, 'error');
+                });
+        }
+        
+        // Logout
+        function logout() {
+            auth.signOut()
+                .then(() => {
+                    showToast('সফলভাবে লগআউট করা হয়েছে!', 'success');
+                    showPage('posts');
+                })
+                .catch(error => {
+                    showToast(`লগআউট করতে সমস্যা: ${error.message}`, 'error');
+                });
+        }
+        
+        // Load posts from Firestore
+        function loadPosts() {
+            // Show loading state
+            postsContainer.innerHTML = `
+                <div class="flex justify-center items-center py-10 col-span-3">
+                    <div class="loader w-10 h-10 rounded-full border-4"></div>
+                    <span class="ml-4">পোস্ট লোড হচ্ছে...</span>
+                </div>
+            `;
+            
+            // Add timeout to prevent infinite loading
+            const timeout = setTimeout(() => {
+                if (postsContainer.innerHTML.includes('লোড হচ্ছে')) {
+                    postsContainer.innerHTML = `
+                        <div class="col-span-3 text-center py-10">
+                            <i class="fas fa-exclamation-triangle text-5xl text-danger mb-4"></i>
+                            <p class="text-xl">লোডিং সময়সীমা অতিক্রম করেছে</p>
+                            <button class="mt-4 bg-primary text-white px-4 py-2 rounded-lg" onclick="loadPosts()">
+                                আবার চেষ্টা করুন
+                            </button>
+                        </div>
+                    `;
+                }
+            }, 10000); // 10 second timeout
+            
+            // Get posts from Firestore
+            return postsRef.orderBy('createdAt', 'desc').get()
+                .then(querySnapshot => {
+                    // Clear timeout on success
+                    clearTimeout(timeout);
+                    
+                    postsContainer.innerHTML = '';
+                    
+                    if (querySnapshot.empty) {
+                        postsContainer.innerHTML = `
+                            <div class="col-span-3 text-center py-10">
+                                <i class="fas fa-file-alt text-5xl text-primary mb-4"></i>
+                                <p class="text-xl">কোন পোস্ট পাওয়া যায়নি</p>
+                                <button class="mt-4 bg-primary text-white px-4 py-2 rounded-lg" onclick="showPage('add-post')">
+                                    প্রথম পোস্ট তৈরি করুন
+                                </button>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    querySnapshot.forEach(doc => {
+                        const post = doc.data();
+                        
+                        // Validate post data
+                        if (!post || typeof post !== 'object') {
+                            console.warn('Invalid post data for document:', doc.id);
+                            return;
+                        }
+                        
+                        const postElement = document.createElement('div');
+                        postElement.className = 'bg-light-card dark:bg-dark-card rounded-xl overflow-hidden shadow-light dark:shadow-dark hover:shadow-lg transition-all';
+                        postElement.innerHTML = `
+                            <div class="p-5">
+                                <div class="flex justify-between items-start mb-3">
+                                    <span class="px-3 py-1 rounded-full text-xs font-semibold text-white" style="background-color: ${getCategoryColor(post.category || 'সাধারণ')};">
+                                        ${post.category || 'সাধারণ'}
+                                    </span>
+                                    <span class="text-sm text-light-muted dark:text-dark-muted">${formatDate(post.createdAt)}</span>
+                                </div>
+                                <h3 class="text-xl font-bold mb-3">${post.title || 'শিরোনাম নেই'}</h3>
+                                <p class="text-light-muted dark:text-dark-muted mb-4">${(post.content || '').substring(0, 100)}${(post.content || '').length > 100 ? '...' : ''}</p>
+                                <div class="flex justify-between items-center">
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 rounded-full bg-gradient-to-r from-success to-primary flex items-center justify-center text-white font-bold text-sm mr-2">
+                                            ${(post.author || 'অজানা').charAt(0)}
+                                        </div>
+                                        <span>${post.author || 'অজানা লেখক'}</span>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <button class="text-primary font-semibold flex items-center" onclick="showPostDetail('${doc.id}')">
+                                            বিস্তারিত দেখুন <i class="fas fa-arrow-right ml-2 text-sm"></i>
+                                        </button>
+                                        ${currentUser && post.authorId === currentUser.uid ? `
+                                            <button class="text-warning font-semibold flex items-center" onclick="editPost('${doc.id}')">
+                                                <i class="fas fa-edit mr-1"></i> এডিট
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="px-5 py-3 bg-light-bg dark:bg-dark-bg border-t border-light-border dark:border-dark-border flex justify-between">
+                                <div class="flex items-center text-sm">
+                                    <i class="fas fa-eye mr-2"></i> ${post.views || 0} ভিউ
+                                </div>
+                                <div class="flex items-center text-sm">
+                                    <i class="fas fa-bookmark mr-2"></i> ${post.bookmarks || 0} সংরক্ষণ
+                                </div>
+                            </div>
+                        `;
+                        postsContainer.appendChild(postElement);
+                    });
+                })
+                .catch(error => {
+                    // Clear timeout on error
+                    clearTimeout(timeout);
+                    
+                    console.error('Error loading posts:', error);
+                    showToast(`পোস্ট লোড করতে সমস্যা: ${error.message}`, 'error');
+                    postsContainer.innerHTML = `
+                        <div class="col-span-3 text-center py-10">
+                            <i class="fas fa-exclamation-triangle text-5xl text-danger mb-4"></i>
+                            <p class="text-xl">ডেটা লোড করতে সমস্যা হয়েছে</p>
+                            <p class="text-sm text-light-muted dark:text-dark-muted mb-4">${error.message}</p>
+                            <button class="mt-4 bg-primary text-white px-4 py-2 rounded-lg" onclick="loadPosts()">
+                                আবার চেষ্টা করুন
+                            </button>
+                        </div>
+                    `;
+                    throw error; // Re-throw to maintain promise chain
+                });
+        }
+        
+        // Format date
+        function formatDate(timestamp) {
+            if (!timestamp) return 'তারিখ নেই';
+            
+            try {
+                const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+                const now = new Date();
+                const diff = now - date;
+                const minutes = Math.floor(diff / 60000);
+                const hours = Math.floor(diff / 3600000);
+                const days = Math.floor(diff / 86400000);
+                
+                if (minutes < 60) {
+                    return `${minutes} মিনিট আগে`;
+                } else if (hours < 24) {
+                    return `${hours} ঘন্টা আগে`;
+                } else {
+                    return `${days} দিন আগে`;
+                }
+            } catch (error) {
+                console.error('Error formatting date:', error);
+                return 'তারিখ নেই';
+            }
+        }
+        
+        // Show post detail
+        function showPostDetail(postId) {
+            currentPostId = postId;
+            
+            // Show loading state
+            postDetailContent.innerHTML = `
+                <div class="flex justify-center items-center py-20">
+                    <div class="loader w-10 h-10 rounded-full border-4"></div>
+                </div>
+            `;
+            
+            // Get post from Firestore
+            postsRef.doc(postId).get()
+                .then(doc => {
+                    if (!doc.exists) {
+                        showToast('পোস্ট পাওয়া যায়নি', 'error');
+                        showPage('posts');
+                        return;
+                    }
+                    
+                    const post = doc.data();
+                    
+                    // Validate post data
+                    if (!post || typeof post !== 'object') {
+                        showToast('পোস্ট ডেটা ভুল', 'error');
+                        showPage('posts');
+                        return;
+                    }
+                    
+                    // Render post detail
+                    postDetailContent.innerHTML = `
+                        <div class="mb-6">
+                            <h1 class="text-3xl font-bold mb-4">${post.title || 'শিরোনাম নেই'}</h1>
+                            <div class="flex flex-wrap items-center gap-4 mb-6">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-gradient-to-r from-success to-primary flex items-center justify-center text-white font-bold mr-3">
+                                        ${(post.author || 'অজানা').charAt(0)}
+                                    </div>
+                                    <div>
+                                        <div class="font-semibold">${post.author || 'অজানা লেখক'}</div>
+                                        <div class="text-sm text-light-muted dark:text-dark-muted">${formatDate(post.createdAt)}</div>
+                                    </div>
+                                </div>
+                                <span class="px-3 py-1 rounded-full text-sm font-semibold text-white" style="background-color: ${getCategoryColor(post.category || 'সাধারণ')};">
+                                    ${post.category || 'সাধারণ'}
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="prose max-w-none dark:prose-invert text-lg mb-8">
+                            ${(post.content || '').replace(/\n/g, '<br><br>')}
+                        </div>
+                        
+                        <div class="flex flex-wrap gap-4 pt-6 border-t border-light-border dark:border-dark-border">
+                            <div class="flex items-center">
+                                <i class="fas fa-eye mr-2"></i> ${post.views || 0} ভিউ
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-bookmark mr-2"></i> ${post.bookmarks || 0} সংরক্ষণ
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Show/hide action buttons based on ownership
+                    if (currentUser && post.authorId === currentUser.uid) {
+                        postActions.style.display = 'flex';
+                        // Update button onclick handlers
+                        const editBtn = postActions.querySelector('button[onclick*="editPost"]');
+                        const deleteBtn = postActions.querySelector('button[onclick*="deletePost"]');
+                        
+                        if (editBtn) {
+                            editBtn.onclick = () => editPost(currentPostId);
+                        }
+                        if (deleteBtn) {
+                            deleteBtn.onclick = () => deletePost(currentPostId);
+                        }
+                    } else {
+                        postActions.style.display = 'none';
+                    }
+                    
+                    // Show post detail page
+                    showPage('post-detail');
+                })
+                .catch(error => {
+                    showToast(`পোস্ট লোড করতে সমস্যা: ${error.message}`, 'error');
+                    showPage('posts');
+                });
+        }
+        
+        // Edit post
+        function editPost(postId) {
+            showToast('পোস্ট লোড করা হচ্ছে...', 'info');
+            
+            // Get post from Firestore
+            postsRef.doc(postId).get()
+                .then(doc => {
+                    if (!doc.exists) {
+                        showToast('পোস্ট পাওয়া যায়নি', 'error');
+                        return;
+                    }
+                    
+                    const post = doc.data();
+                    
+                    // Validate post data
+                    if (!post || typeof post !== 'object') {
+                        showToast('পোস্ট ডেটা ভুল', 'error');
+                        return;
+                    }
+                    
+                    // Check if user owns this post
+                    if (post.authorId !== currentUser.uid) {
+                        showToast('আপনি শুধুমাত্র আপনার নিজের পোস্ট এডিট করতে পারবেন', 'error');
+                        return;
+                    }
+                    
+                    // Show edit form first
+                    showPage('add-post');
+                    
+                    // Wait for DOM to be ready, then fill form with post data
+                    setTimeout(() => {
+                        const titleInput = document.getElementById('post-title');
+                        const categorySelect = document.getElementById('post-category');
+                        const contentTextarea = document.getElementById('post-content');
+                        const postIdInput = document.getElementById('post-id');
+                        
+                        if (titleInput && categorySelect && contentTextarea && postIdInput) {
+                            // Fill form with post data
+                            titleInput.value = post.title || '';
+                            categorySelect.value = post.category || '';
+                            contentTextarea.value = post.content || '';
+                            postIdInput.value = postId;
+                            
+                            // Update form title and icon
+                            formTitle.textContent = 'পোস্ট এডিট করুন';
+                            submitText.textContent = 'আপডেট সংরক্ষণ করুন';
+                            
+                            // Update form icon
+                            const addPostIcon = document.querySelector('#add-post .fas.fa-plus-circle');
+                            if (addPostIcon) {
+                                addPostIcon.className = 'fas fa-edit mr-3';
+                            }
+                            
+                            showToast('পোস্ট এডিট করার জন্য প্রস্তুত', 'success');
+                        } else {
+                            showToast('ফর্ম লোড করতে সমস্যা হয়েছে', 'error');
+                        }
+                    }, 100);
+                })
+                .catch(error => {
+                    showToast(`পোস্ট লোড করতে সমস্যা: ${error.message}`, 'error');
+                });
+        }
+        
+        // Delete post
+        function deletePost(postId) {
+            if (confirm('আপনি কি এই পোস্টটি ডিলিট করতে চান? এই কাজটি পূর্বাবস্থায় ফেরানো যাবে না।')) {
+                showToast('পোস্ট ডিলিট করা হচ্ছে...', 'info');
+                
+                // First check if user owns this post
+                postsRef.doc(postId).get()
+                    .then(doc => {
+                        if (!doc.exists) {
+                            showToast('পোস্ট পাওয়া যায়নি', 'error');
+                            return;
+                        }
+                        
+                        const post = doc.data();
+                        if (post.authorId !== currentUser.uid) {
+                            showToast('আপনি শুধুমাত্র আপনার নিজের পোস্ট ডিলিট করতে পারবেন', 'error');
+                            return;
+                        }
+                        
+                        // Delete from Firestore
+                        return postsRef.doc(postId).delete();
+                    })
+                    .then(async () => {
+                        showToast('পোস্ট সফলভাবে ডিলিট করা হয়েছে!', 'success');
+                        // Refresh posts list
+                        await loadPosts();
+                        showPage('posts');
+                    })
+                    .catch(error => {
+                        showToast(`পোস্ট ডিলিট করতে সমস্যা: ${error.message}`, 'error');
+                    });
+            }
+        }
+        
+        // Save post to Firestore
+        function savePost(postId, postData) {
+            // Validate data before saving
+            if (!postData.title || !postData.category || !postData.content) {
+                return Promise.reject(new Error('সমস্ত তথ্য পূরণ করুন'));
+            }
+            
+            // Sanitize data
+            const sanitizedData = {
+                title: postData.title.trim(),
+                category: postData.category.trim(),
+                content: postData.content.trim()
+            };
+            
+            if (postId) {
+                // Update existing post - first verify ownership
+                return postsRef.doc(postId).get()
+                    .then(doc => {
+                        if (!doc.exists) {
+                            throw new Error('পোস্ট পাওয়া যায়নি');
+                        }
+                        
+                        const existingPost = doc.data();
+                        if (existingPost.authorId !== currentUser.uid) {
+                            throw new Error('আপনি শুধুমাত্র আপনার নিজের পোস্ট এডিট করতে পারবেন');
+                        }
+                        
+                        // Update the post
+                        return postsRef.doc(postId).update({
+                            ...sanitizedData,
+                            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                    })
+                    .then(() => {
+                        // Force refresh posts after update
+                        setTimeout(() => {
+                            if (!document.getElementById('posts').classList.contains('hidden')) {
+                                loadPosts();
+                            }
+                        }, 100);
+                    });
+            } else {
+                // Add new post
+                return postsRef.add({
+                    ...sanitizedData,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    author: currentUser.displayName || 'অজানা লেখক',
+                    authorId: currentUser.uid,
+                    views: 0,
+                    bookmarks: 0
+                });
+            }
+        }
+        
+        // Category color
+        function getCategoryColor(category) {
+            const colors = {
+                'প্রযুক্তি': '#4cc9f0',
+                'স্বাস্থ্য': '#06d6a0',
+                'শিক্ষা': '#7209b7',
+                'বিনোদন': '#ff9e00',
+                'খেলাধুলা': '#ff6b6b',
+                'রাজনীতি': '#ffd166'
+            };
+            return colors[category] || '#4361ee';
+        }
+        
+        // Load dashboard data
+        function loadDashboardData() {
+            // Show loading state
+            document.getElementById('recent-activity').innerHTML = `
+                <div class="flex justify-center items-center py-10">
+                    <div class="loader w-10 h-10 rounded-full border-4"></div>
+                </div>
+            `;
+            
+            // Update stats immediately
+            updateDashboardStats();
+            
+                        // Get posts from Firestore
+            postsRef.get()
+                .then(querySnapshot => {
+                    const posts = [];
+                    const categories = {};
+                    let totalViews = 0;
+                    
+                    querySnapshot.forEach(doc => {
+                        const post = doc.data();
+                        
+                        // Validate post data
+                        if (!post || typeof post !== 'object') {
+                            console.warn('Invalid post data for document:', doc.id);
+                            return;
+                        }
+                        
+                        posts.push(post);
+                        totalViews += post.views || 0;
+                        
+                        // Count posts per category
+                        if (post.category) {
+                            if (!categories[post.category]) {
+                                categories[post.category] = 0;
+                            }
+                            categories[post.category]++;
+                        }
+                    });
+                    
+                    // Update stats
+                    totalPostsEl.textContent = querySnapshot.size;
+                    totalViewsEl.textContent = totalViews;
+                    totalCategoriesEl.textContent = Object.keys(categories).length;
+                    
+                    // Update user stats
+                    if (currentUser) {
+                        const userPosts = posts.filter(post => post.authorId === currentUser.uid);
+                        userPostsEl.textContent = userPosts.length;
+                        userViewsEl.textContent = userPosts.reduce((sum, post) => sum + (post.views || 0), 0);
+                    }
+                    
+                    // Prepare data for charts
+                    const categoryLabels = Object.keys(categories);
+                    const categoryData = Object.values(categories);
+                    
+                    // Create category chart
+                    createCategoryChart(categoryLabels, categoryData);
+                    
+                    // Create views chart (top 5 posts by views)
+                    const topPosts = [...posts].sort((a, b) => (b.views || 0) - (a.views || 0)).slice(0, 5);
+                    createViewsChart(topPosts);
+                    
+                    // Update recent activity
+                    updateRecentActivity(posts);
+                })
+                .catch(error => {
+                    showToast(`ড্যাশবোর্ড ডেটা লোড করতে সমস্যা: ${error.message}`, 'error');
+                });
+        }
+        
+        // Update dashboard stats
+        function updateDashboardStats() {
+            // Update user stats if logged in
+            if (currentUser) {
+                postsRef.where('authorId', '==', currentUser.uid).get()
+                    .then(querySnapshot => {
+                        userPostsEl.textContent = querySnapshot.size;
+                        userViewsEl.textContent = querySnapshot.docs.reduce((sum, doc) => {
+                            const data = doc.data();
+                            return sum + (data.views || 0);
+                        }, 0);
+                    })
+                    .catch(error => {
+                        console.error('Error updating user stats:', error);
+                    });
+            }
+        }
+        
+        // Create category chart
+        function createCategoryChart(labels, data) {
+            const ctx = document.getElementById('category-chart').getContext('2d');
+            
+            // Destroy previous chart if exists
+            if (categoryChart) {
+                categoryChart.destroy();
+            }
+            
+            // Create new chart
+            categoryChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'পোস্ট সংখ্যা',
+                        data: data,
+                        backgroundColor: labels.map(cat => getCategoryColor(cat)),
+                        borderColor: labels.map(cat => getCategoryColor(cat)),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Create views chart
+        function createViewsChart(posts) {
+            const ctx = document.getElementById('views-chart').getContext('2d');
+            
+            // Destroy previous chart if exists
+            if (viewsChart) {
+                viewsChart.destroy();
+            }
+            
+            // Create new chart
+            viewsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                                         labels: posts.map(post => (post.title || 'শিরোনাম নেই').substring(0, 15) + ((post.title || '').length > 15 ? '...' : '')),
+                     datasets: [{
+                         label: 'ভিউ সংখ্যা',
+                         data: posts.map(post => post.views || 0),
+                        backgroundColor: posts.map(post => getCategoryColor(post.category || 'সাধারণ')),
+                        borderColor: posts.map(post => getCategoryColor(post.category || 'সাধারণ')),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update recent activity
+        function updateRecentActivity(posts) {
+            const activityContainer = document.getElementById('recent-activity');
+            activityContainer.innerHTML = '';
+            
+                         // Sort posts by date
+             const sortedPosts = [...posts].sort((a, b) => {
+                 try {
+                     const dateA = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+                     const dateB = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+                     return dateB - dateA;
+                 } catch (error) {
+                     console.error('Error sorting posts by date:', error);
+                     return 0;
+                 }
+             }).slice(0, 5);
+            
+                         sortedPosts.forEach(post => {
+                 const activityItem = document.createElement('div');
+                 activityItem.className = 'flex items-start p-3 border-b border-light-border dark:border-dark-border last:border-0';
+                 activityItem.innerHTML = `
+                     <div class="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center text-white font-bold mr-3">
+                         ${(post.author || 'অজানা').charAt(0)}
+                     </div>
+                     <div>
+                         <div class="font-semibold">${post.author || 'অজানা লেখক'}</div>
+                         <div class="text-sm">${post.title || 'শিরোনাম নেই'}</div>
+                         <div class="text-xs text-light-muted dark:text-dark-muted mt-1">
+                             <span class="px-2 py-1 rounded-full text-xs font-semibold text-white mr-2" style="background-color: ${getCategoryColor(post.category || 'সাধারণ')};">
+                                 ${post.category || 'সাধারণ'}
+                             </span>
+                             ${formatDate(post.createdAt)}
+                         </div>
+                     </div>
+                 `;
+                 activityContainer.appendChild(activityItem);
+             });
+        }
+        
+        // Update user info
+        function updateUserInfo(user) {
+            currentUser = user;
+            
+            if (user) {
+                const displayName = user.displayName || "ব্যবহারকারী";
+                const email = user.email || "ইমেইল নেই";
+                const firstLetter = displayName.charAt(0).toUpperCase();
+                
+                userInfoDiv.innerHTML = `
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-r from-success to-primary flex items-center justify-center text-white font-bold cursor-pointer">
+                        ${firstLetter}
+                    </div>
+                    <button class="bg-white dark:bg-dark-card text-primary dark:text-primary-light px-4 py-2 rounded-full font-semibold flex items-center hover:bg-light dark:hover:bg-dark-border transition" onclick="logout()">
+                        <i class="fas fa-sign-out-alt mr-2"></i> লগআউট
+                    </button>
+                `;
+                
+                // Update profile
+                profileAvatar.textContent = firstLetter;
+                profileName.textContent = displayName;
+                profileEmail.textContent = email;
+                
+                // Get user's posts count
+                postsRef.where('authorId', '==', user.uid).get()
+                    .then(querySnapshot => {
+                        userPostsEl.textContent = querySnapshot.size;
+                        userViewsEl.textContent = querySnapshot.docs.reduce((sum, doc) => {
+                            const data = doc.data();
+                            return sum + (data.views || 0);
+                        }, 0);
+                    })
+                    .catch(error => {
+                        console.error('Error fetching user posts:', error);
+                        userPostsEl.textContent = "0";
+                        userViewsEl.textContent = "0";
+                    });
+            } else {
+                userInfoDiv.innerHTML = `
+                    <button class="bg-white dark:bg-dark-card text-primary dark:text-primary-light px-4 py-2 rounded-full font-semibold flex items-center hover:bg-light dark:hover:bg-dark-border transition" onclick="showPage('login-page')">
+                        <i class="fas fa-sign-in-alt mr-2"></i>লগইন
+                    </button>
+                `;
+                
+                userPostsEl.textContent = "0";
+                userViewsEl.textContent = "0";
+            }
+        }
+        
+        // Form submission for posts
+        postForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (!currentUser) {
+                showToast('পোস্ট করতে লগইন করুন', 'error');
+                showPage('login-page');
+                return;
+            }
+            
+            const title = document.getElementById('post-title').value;
+            const category = document.getElementById('post-category').value;
+            const content = document.getElementById('post-content').value;
+            const postId = postIdInput.value;
+            
+            if (!title || !category || !content) {
+                showToast('সমস্ত তথ্য পূরণ করুন', 'error');
+                return;
+            }
+            
+            try {
+                // Show loading
+                const submitBtn = postForm.querySelector('button[type="submit"]');
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> সংরক্ষণ করা হচ্ছে...';
+                
+                // Save to Firestore
+                await savePost(postId, { title, category, content });
+                
+                showToast(postId ? 'পোস্ট সফলভাবে আপডেট করা হয়েছে!' : 'পোস্ট সফলভাবে তৈরি করা হয়েছে!', 'success');
+                
+                // Reset form
+                document.getElementById('post-form').reset();
+                postIdInput.value = '';
+                formTitle.textContent = 'নতুন পোস্ট তৈরি করুন';
+                submitText.textContent = 'পোস্ট প্রকাশ করুন';
+                
+                // Refresh posts list and show posts page
+                await loadPosts();
+                showPage('posts');
+                
+                // Clear the post ID to reset form state
+                document.getElementById('post-id').value = '';
+                
+                // Update dashboard if it's visible
+                if (!document.getElementById('dashboard').classList.contains('hidden')) {
+                    loadDashboardData();
+                }
+            } catch (error) {
+                showToast(`পোস্ট সংরক্ষণ করতে সমস্যা: ${error.message}`, 'error');
+            } finally {
+                const submitBtn = postForm.querySelector('button[type="submit"]');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<i class="fas fa-paper-plane mr-2"></i> ${postId ? 'আপডেট সংরক্ষণ করুন' : 'পোস্ট প্রকাশ করুন'}`;
+            }
+        });
+        
+        // Initialize
+        initTheme();
+        
+        // Test theme functionality
+        console.log('Theme initialized. Current theme:', localStorage.getItem('theme'));
+        console.log('Dark mode active:', document.documentElement.classList.contains('dark'));
+        
+        // Force theme update on load
+        setTimeout(() => {
+            updateThemeElements();
+        }, 100);
+        
+        // Listen for system theme changes
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+            const savedTheme = localStorage.getItem('theme');
+            // Only auto-update if user hasn't manually set a preference
+            if (!savedTheme) {
+                if (e.matches) {
+                    document.documentElement.classList.add('dark');
+                    localStorage.setItem('theme', 'dark');
+                    themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    localStorage.setItem('theme', 'light');
+                    themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+                }
+            }
+        });
+        
+        // Check if Firebase is properly initialized
+        if (typeof firebase === 'undefined') {
+            showToast('Firebase লোড করতে সমস্যা হয়েছে', 'error');
+            console.error('Firebase is not loaded');
+        } else {
+            // Simple initial load
+            setTimeout(() => {
+                loadPosts();
+            }, 500);
+            
+            // Firebase auth state listener
+            auth.onAuthStateChanged(user => {
+                updateUserInfo(user);
+                
+                // Refresh posts when user logs in/out to show/hide edit buttons
+                if (user) {
+                    loadPosts();
+                }
+            });
+            
+            // Listen for real-time updates with debouncing
+            let updateTimeout;
+            let isUpdating = false;
+            
+            postsRef.onSnapshot((snapshot) => {
+                // Only refresh if we're on the posts page
+                if (!document.getElementById('posts').classList.contains('hidden') && !isUpdating) {
+                    // Debounce updates to prevent too many refreshes
+                    clearTimeout(updateTimeout);
+                    updateTimeout = setTimeout(() => {
+                        isUpdating = true;
+                        loadPosts().finally(() => {
+                            isUpdating = false;
+                        });
+                    }, 1000);
+                }
+            }, (error) => {
+                console.error('Error listening for post updates:', error);
+            });
+        }
+    </script>
+</body>
+</html>
